@@ -1,13 +1,13 @@
 {
-    "name": "rap2hpoutre/laravel-log-viewer",
-    "description": "A Laravel log reader",
+    "name": "everysecond/laravel-log-viewer",
+    "description": "A Laravel log reader Fork from Rap2hpoutre/laravel-log-viewer",
     "license": "MIT",
     "keywords": ["log", "log-reader", "log-viewer", "logging", "laravel", "lumen"],
     "type": "laravel-package",
     "authors": [
         {
-            "name": "rap2hpoutre",
-            "email": "raphaelht@gmail.com"
+            "name": "lidz",
+            "email": "540889445@qq.com"
         }
     ],
     "require": {
