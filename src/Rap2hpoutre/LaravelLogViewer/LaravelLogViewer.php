@@ -12,32 +12,32 @@ class LaravelLogViewer
      * @var string file
      */
     private $file;
-
+    
     /**
      * @var string folder
      */
     private $folder;
-
+    
     /**
      * @var string storage_path
      */
     private $storage_path;
-
+    
     /**
      * Why? Uh... Sorry
      */
     const MAX_FILE_SIZE = 52428800;
-
+    
     /**
      * @var Level level
      */
     private $level;
-
+    
     /**
      * @var Pattern pattern
      */
     private $pattern;
-
+    
     /**
      * LaravelLogViewer constructor.
      */
@@ -46,9 +46,9 @@ class LaravelLogViewer
         $this->level = new Level();
         $this->pattern = new Pattern();
         $this->storage_path = function_exists('config') ? config('logviewer.storage_path', storage_path('logs')) : storage_path('logs');
-
+        
     }
-
+    
     /**
      * @param string $folder
      */
@@ -74,7 +74,7 @@ class LaravelLogViewer
             }
         }
     }
-
+    
     /**
      * @param string $file
      * @throws \Exception
@@ -82,12 +82,12 @@ class LaravelLogViewer
     public function setFile($file)
     {
         $file = $this->pathToLogFile($file);
-
+        
         if (app('files')->exists($file)) {
             $this->file = $file;
         }
     }
-
+    
     /**
      * @param string $file
      * @return string
@@ -95,7 +95,7 @@ class LaravelLogViewer
      */
     public function pathToLogFile($file)
     {
-
+        
         if (app('files')->exists($file)) { // try the absolute path
             return $file;
         }
@@ -108,7 +108,7 @@ class LaravelLogViewer
             }
             return $file;
         }
-
+        
         $logsPath = $this->storage_path;
         $logsPath .= ($this->folder) ? '/' . $this->folder : '';
         $file = $logsPath . '/' . $file;
@@ -118,7 +118,7 @@ class LaravelLogViewer
         }
         return $file;
     }
-
+    
     /**
      * @return string
      */
@@ -126,7 +126,7 @@ class LaravelLogViewer
     {
         return $this->folder;
     }
-
+    
     /**
      * @return string
      */
@@ -134,14 +134,15 @@ class LaravelLogViewer
     {
         return basename($this->file);
     }
-
+    
     /**
-     * @return array
+     * @param string $logType
+     * @return array|null
      */
-    public function all()
+    public function all($logType = 'error')
     {
         $log = array();
-
+        
         if (!$this->file) {
             $log_file = (!$this->folder) ? $this->getFiles() : $this->getFolderFiles();
             if (!count($log_file)) {
@@ -149,36 +150,44 @@ class LaravelLogViewer
             }
             $this->file = $log_file[0];
         }
-
+        
         $max_file_size = function_exists('config') ? config('logviewer.max_file_size', self::MAX_FILE_SIZE) : self::MAX_FILE_SIZE;
         if (app('files')->size($this->file) > $max_file_size) {
             return null;
         }
-
+        
         $file = app('files')->get($this->file);
-
+        
         preg_match_all($this->pattern->getPattern('logs'), $file, $headings);
-
+        
         if (!is_array($headings)) {
             return $log;
         }
-
+        
         $log_data = preg_split($this->pattern->getPattern('logs'), $file);
-
+        
         if ($log_data[0] < 1) {
             array_shift($log_data);
         }
-
+        
+        $levelAll = $this->level->all();
+        if($logType && $logType != 'all' && in_array($logType,$levelAll)){
+            $levelAll = [$logType];
+        }
+        
+        $count = 0;
+        $max = 1000;
+        
         foreach ($headings as $h) {
             for ($i = 0, $j = count($h); $i < $j; $i++) {
-                foreach ($this->level->all() as $level) {
+                foreach ($levelAll as $level) {
                     if (strpos(strtolower($h[$i]), '.' . $level) || strpos(strtolower($h[$i]), $level . ':')) {
-
+                        
                         preg_match($this->pattern->getPattern('current_log', 0) . $level . $this->pattern->getPattern('current_log', 1), $h[$i], $current);
                         if (!isset($current[4])) {
                             continue;
                         }
-
+                        $count++;
                         $log[] = array(
                             'context' => $current[3],
                             'level' => $level,
@@ -190,16 +199,25 @@ class LaravelLogViewer
                             'in_file' => isset($current[5]) ? $current[5] : null,
                             'stack' => preg_replace("/^\n*/", '', $log_data[$i])
                         );
+                        if($count>=$max){
+                            break;
+                        }
                     }
+                    if($count>=$max){
+                        break;
+                    }
+                }
+                if($count>=$max){
+                    break;
                 }
             }
         }
-
-        if (empty($log)) {
-
+        
+        if (empty($log) && $logType == 'all') {
+            
             $lines = explode(PHP_EOL, $file);
             $log = [];
-
+            
             foreach ($lines as $key => $line) {
                 $log[] = [
                     'context' => '',
@@ -214,10 +232,10 @@ class LaravelLogViewer
                 ];
             }
         }
-
+        
         return array_reverse($log);
     }
-
+    
     /**
      * @return array
      */
@@ -232,7 +250,7 @@ class LaravelLogViewer
                 );
             }
         }
-
+        
         if (is_array($folders)) {
             foreach ($folders as $k => $folder) {
                 $folders[$k] = basename($folder);
@@ -240,7 +258,7 @@ class LaravelLogViewer
         }
         return array_values($folders);
     }
-
+    
     /**
      * @param bool $basename
      * @return array
@@ -249,7 +267,7 @@ class LaravelLogViewer
     {
         return $this->getFiles($basename, $this->folder);
     }
-
+    
     /**
      * @param bool $basename
      * @param string $folder
@@ -265,15 +283,15 @@ class LaravelLogViewer
         if (is_array($this->storage_path)) {
             foreach ($this->storage_path as $value) {
                 $files = array_merge(
-                  $files,
-                  glob(
-                      $value . '/' . $folder . '/' . $pattern,
-                      preg_match($this->pattern->getPattern('files'), $pattern) ? GLOB_BRACE : 0
-                  )
+                    $files,
+                    glob(
+                        $value . '/' . $folder . '/' . $pattern,
+                        preg_match($this->pattern->getPattern('files'), $pattern) ? GLOB_BRACE : 0
+                    )
                 );
             }
         }
-
+        
         $files = array_reverse($files);
         $files = array_filter($files, 'is_file');
         if ($basename && is_array($files)) {
