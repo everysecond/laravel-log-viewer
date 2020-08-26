@@ -20,17 +20,17 @@ class LogViewerController extends BaseController
      * @var \Illuminate\Http\Request
      */
     protected $request;
-
+    
     /**
      * @var LaravelLogViewer
      */
     private $log_viewer;
-
+    
     /**
      * @var string
      */
     protected $view_log = 'laravel-log-viewer::log';
-
+    
     /**
      * LogViewerController constructor.
      */
@@ -39,7 +39,7 @@ class LogViewerController extends BaseController
         $this->log_viewer = new LaravelLogViewer();
         $this->request = app('request');
     }
-
+    
     /**
      * @return array|mixed
      * @throws \Exception
@@ -54,35 +54,52 @@ class LogViewerController extends BaseController
         if ($this->request->input('l')) {
             $this->log_viewer->setFile(Crypt::decrypt($this->request->input('l')));
         }
-
+        
         if ($early_return = $this->earlyReturn()) {
             return $early_return;
         }
-
+        
+        $logType = $this->request->get('log_type', 'error') ?: 'error';
+        
+        $levels = [
+            'debug' => 'info',
+            'info' => 'info',
+            'notice' => 'info',
+            'warning' => 'warning',
+            'error' => 'danger',
+            'critical' => 'danger',
+            'alert' => 'danger',
+            'emergency' => 'danger',
+            'processed' => 'info',
+            'failed' => 'warning',
+            'all'=>'warning'
+        ];
         $data = [
-            'logs' => $this->log_viewer->all(),
+            'logs' => $this->log_viewer->all($logType),
             'folders' => $this->log_viewer->getFolders(),
             'current_folder' => $this->log_viewer->getFolderName(),
             'folder_files' => $folderFiles,
             'files' => $this->log_viewer->getFiles(true),
             'current_file' => $this->log_viewer->getFileName(),
             'standardFormat' => true,
+            'levels' => $levels,
         ];
-
+        
+        
         if ($this->request->wantsJson()) {
             return $data;
         }
-
+        
         if (is_array($data['logs']) && count($data['logs']) > 0) {
             $firstLog = reset($data['logs']);
             if (!$firstLog['context'] && !$firstLog['level']) {
                 $data['standardFormat'] = false;
             }
         }
-
+        
         return app('view')->make($this->view_log, $data);
     }
-
+    
     /**
      * @return bool|mixed
      * @throws \Exception
@@ -92,7 +109,7 @@ class LogViewerController extends BaseController
         if ($this->request->input('f')) {
             $this->log_viewer->setFolder(Crypt::decrypt($this->request->input('f')));
         }
-
+        
         if ($this->request->input('dl')) {
             return $this->download($this->pathFromInput('dl'));
         } elseif ($this->request->has('clean')) {
@@ -103,8 +120,8 @@ class LogViewerController extends BaseController
             return $this->redirect($this->request->url());
         } elseif ($this->request->has('delall')) {
             $files = ($this->log_viewer->getFolderName())
-                        ? $this->log_viewer->getFolderFiles(true)
-                        : $this->log_viewer->getFiles(true);
+                ? $this->log_viewer->getFolderFiles(true)
+                : $this->log_viewer->getFiles(true);
             foreach ($files as $file) {
                 app('files')->delete($this->log_viewer->pathToLogFile($file));
             }
@@ -112,7 +129,7 @@ class LogViewerController extends BaseController
         }
         return false;
     }
-
+    
     /**
      * @param string $input_string
      * @return string
@@ -122,7 +139,7 @@ class LogViewerController extends BaseController
     {
         return $this->log_viewer->pathToLogFile(Crypt::decrypt($this->request->input($input_string)));
     }
-
+    
     /**
      * @param $to
      * @return mixed
@@ -132,10 +149,10 @@ class LogViewerController extends BaseController
         if (function_exists('redirect')) {
             return redirect($to);
         }
-
+        
         return app('redirect')->to($to);
     }
-
+    
     /**
      * @param string $data
      * @return mixed
@@ -145,7 +162,7 @@ class LogViewerController extends BaseController
         if (function_exists('response')) {
             return response()->download($data);
         }
-
+        
         // For laravel 4.2
         return app('\Illuminate\Support\Facades\Response')->download($data);
     }
